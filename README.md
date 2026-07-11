@@ -1,6 +1,6 @@
 # Zotero Utils
 
-A  Zotero plugin that provides annotation export (to markdown), PDF summarization and annotation translation (using the Mistral API), auto-tagging, and annotation color customization .
+A Zotero plugin that provides annotation export (to markdown), PDF summarization and annotation translation (using the Mistral API), auto-tagging, and annotation color customization.
 
 ## Features
 

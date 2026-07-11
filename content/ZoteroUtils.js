@@ -6,6 +6,22 @@ ZoteroUtils = {
   initialized: false,
   addedElements: [],
 
+  // Auto-tag settings
+  autoTagEnabled: true,
+  unreadTag: "/unread",
+  
+  // Annotation color customization
+  colorLabelMap: {
+    "#ffd400": "&nbsp;Interessant punt", // Yellow
+    "#ff6666": "&nbsp;Hoofdvraag / belangrijk punt", // Red
+    "#5fb236": "&nbsp;Referentie naar ander werk", // Green
+    "#2ea8e5": "&nbsp;Plaats", // Blue
+    "#a28ae5": "&nbsp;Persoon", // Purple
+    "#e56eee": "&nbsp;Hoe zit dit?", // Magenta
+    "#f19837": "&nbsp;Hoofdstuk", // Orange
+    "#aaaaaa": "&nbsp;Onzin", // Gray
+  },
+
   strings: {
     nl: {
       menuLabel: "Samenvatten",
@@ -24,7 +40,9 @@ ZoteroUtils = {
       smartCopyLabel: "Slim Kopieren",
       translateError: "Kan tekst niet vertalen",
       exportError: "Kan niet exporteren",
-      smartCopySuccess: "Gekopieerd naar klembord"
+      smartCopySuccess: "Gekopieerd naar klembord",
+      autoTagLabel: "Voeg /unread tag toe aan nieuwe items",
+      colorCustomizationLabel: "Aangepaste annotatie kleur labels"
     },
     en: {
       menuLabel: "Summarize",
@@ -43,7 +61,9 @@ ZoteroUtils = {
       smartCopyLabel: "Smart Copy",
       translateError: "Cannot translate text",
       exportError: "Cannot export",
-      smartCopySuccess: "Copied to clipboard"
+      smartCopySuccess: "Copied to clipboard",
+      autoTagLabel: "Add /unread tag to new items",
+      colorCustomizationLabel: "Custom annotation color labels"
     },
   },
 
@@ -76,6 +96,12 @@ ZoteroUtils = {
       this.id,
     );
 
+    // Auto-tagging: Add /unread tag to new items
+    this.setupAutoTagging();
+
+    // Custom annotation color names
+    this.setupColorCustomization();
+
     Zotero.debug("zotero-utils: initialized");
   },
 
@@ -107,7 +133,83 @@ ZoteroUtils = {
     // Unregister preference observer
     Zotero.Prefs.unregisterObserver(this.PREF_BRANCH + "language");
 
+    // Unregister auto-tagging observer
+    this.cleanupAutoTagging();
+
+    // Unregister color customization listeners
+    this.cleanupColorCustomization();
+
     this.initialized = false;
+  },
+
+  // ==================== AUTO-TAGGING FUNCTIONS (from colors-and-autotag) ====================
+
+  setupAutoTagging() {
+    // Check if auto-tagging is enabled (default: true)
+    this.autoTagEnabled = Zotero.Prefs.get(this.PREF_BRANCH + "autoTagEnabled", true) !== false;
+    
+    if (this.autoTagEnabled) {
+      // Register notifier for new items - adds /unread tag
+      this.notifierID = Zotero.Notifier.registerObserver(
+        {
+          notify: (event, type, ids, extraData) => {
+            if (event === "add" && type === "item") {
+              for (let id of ids) {
+                let item = Zotero.Items.get(id);
+                if (item && item.isRegularItem()) {
+                  item.addTag(this.unreadTag);
+                }
+              }
+            }
+          },
+        },
+        ["item"],
+      );
+    }
+  },
+
+  cleanupAutoTagging() {
+    if (this.notifierID) {
+      Zotero.Notifier.unregisterObserver(this.notifierID);
+      this.notifierID = null;
+    }
+  },
+
+  // ==================== COLOR CUSTOMIZATION FUNCTIONS (from colors-and-autotag) ====================
+
+  setupColorCustomization() {
+    // Customize annotation color names
+    const hackContextMenuLabel = (event) => {
+      setTimeout(() => {
+        event.reader._iframeWindow?.document.querySelectorAll(".context-menu .row").forEach((e) => {
+          const color = e.querySelector("path[fill]")?.getAttribute("fill");
+          if (!color) {
+            return;
+          }
+          if (color in this.colorLabelMap) {
+            e.innerHTML = e.querySelector("svg")?.outerHTML + this.colorLabelMap[color];
+          }
+        });
+      }, 10);
+    };
+
+    Zotero.Reader.registerEventListener(
+      "createAnnotationContextMenu",
+      hackContextMenuLabel,
+      this.id,
+    );
+
+    Zotero.Reader.registerEventListener(
+      "createColorContextMenu",
+      hackContextMenuLabel,
+      this.id,
+    );
+  },
+
+  cleanupColorCustomization() {
+    // Unregister color customization listeners
+    Zotero.Reader.unregisterEventListener("createAnnotationContextMenu", this.id);
+    Zotero.Reader.unregisterEventListener("createColorContextMenu", this.id);
   },
 
   getLanguage() {

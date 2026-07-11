@@ -93,4 +93,37 @@
       Markdown files will be saved to this directory. Leave empty to save to your home directory.
     </description>
   </groupbox>
+
+  <groupbox>
+    <label><html:h2>Auto-tagging Settings</html:h2></label>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Enable Auto-tagging:" control="auto-tag-enabled" style="min-width: 120px" />
+      <checkbox id="auto-tag-enabled" preference="extensions.zotero-utils.autoTagEnabled" />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Unread Tag:" control="unread-tag" style="min-width: 120px" />
+      <html:input
+        id="unread-tag"
+        type="text"
+        preference="extensions.zotero-utils.unreadTag"
+        placeholder="/unread"
+        style="flex: 1"
+      />
+    </hbox>
+
+    <description style="margin-top: 10px">
+      When enabled, new items will automatically receive the specified tag (default: /unread).
+    </description>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>Annotation Colors</html:h2></label>
+
+    <description style="margin-top: 10px">
+      Custom labels for annotation highlight colors. These use Dutch labels by default.
+      The color labels are automatically applied to annotation context menus.
+    </description>
+  </groupbox>
 </vbox>

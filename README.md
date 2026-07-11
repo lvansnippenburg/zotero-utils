@@ -1,12 +1,13 @@
 # Zotero Utils
 
-A combined Zotero plugin that provides annotation utilities and PDF summarization using the Mistral API.
+A combined Zotero plugin that provides annotation utilities, PDF summarization, auto-tagging, and annotation color customization using the Mistral API.
 
 ## Features
 
-This plugin combines the functionality of two previous plugins:
+This plugin combines the functionality of three previous plugins:
 - **Annotation Utilities (AU)**: Translate annotations, export annotations/notes as Markdown, and smart copy
 - **Summary by AI**: Generate AI-powered summaries of PDF documents
+- **Colors and Autotag**: Auto-tag new items and customize annotation color names
 
 ### Annotation Utilities
 - **Translate**: Translate annotation text using Mistral AI
@@ -17,6 +18,14 @@ This plugin combines the functionality of two previous plugins:
 - **Summarize PDFs**: Generate comprehensive summaries of PDF documents
 - **Text Extraction**: Extract text from PDFs for analysis
 - **Full Text Extraction**: Option to extract all text from the PDF file
+
+### Auto-tagging
+- **Automatic /unread tag**: New items automatically receive the `/unread` tag (configurable)
+- **Enable/Disable**: Toggle auto-tagging on/off in preferences
+
+### Annotation Color Customization
+- **Dutch color labels**: Annotation highlight colors have custom Dutch names
+- **Color mapping**: Each highlight color is mapped to a descriptive label (e.g., Yellow = "Interessant punt")
 
 ## Installation
 
@@ -65,10 +74,17 @@ This plugin combines the functionality of two previous plugins:
 - **Language**: Default language for summaries and translations
 
 ### Summary Settings
-- **Extraction Mode**: Choose between "Text Only" (faster, cheaper) or "Full PDF with Images" (for PDFs with visual content)
+- **Extraction Mode**: Choose between "Text Only" (faster) or "Full Text Extraction" (thorough)
 
 ### Export Settings
 - **Export Path**: Directory where Markdown files will be saved (leave empty for home directory)
+
+### Auto-tagging Settings
+- **Enable Auto-tagging**: Turn on/off automatic tagging of new items
+- **Unread Tag**: The tag to apply to new items (default: /unread)
+
+### Annotation Colors
+- **Custom Labels**: Dutch labels for annotation highlight colors (configurable in code)
 
 ## Supported Models
 
@@ -93,8 +109,9 @@ MIT License - see LICENSE.md for details
 
 ## Acknowledgments
 
-This plugin was created by combining and modifying two previous plugins:
-- AU - Annotation Utilities
-- Summary by AI
+This plugin was created by combining and modifying three previous plugins:
+- **AU - Annotation Utilities**: Annotation translation and export
+- **Summary by AI**: PDF summarization
+- **Colors and Autotag**: Auto-tagging and color customization
 
-Both original plugins used the Gemini API and have been updated to use Mistral AI instead.
+All original plugins that used AI have been updated to use Mistral AI instead of Google's Gemini API.

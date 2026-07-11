@@ -9,3 +9,7 @@ pref("extensions.zotero-utils.extractionMode", "text");
 
 // Export Settings (from AU plugin)
 pref("extensions.zotero-utils.exportPath", "");
+
+// Auto-tagging Settings (from colors-and-autotag plugin)
+pref("extensions.zotero-utils.autoTagEnabled", true);
+pref("extensions.zotero-utils.unreadTag", "/unread");

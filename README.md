@@ -1,13 +1,8 @@
 # Zotero Utils
 
-A combined Zotero plugin that provides annotation utilities, PDF summarization, auto-tagging, and annotation color customization using the Mistral API.
+A  Zotero plugin that provides annotation export (to markdown), PDF summarization and annotation translation (using the Mistral API), auto-tagging, and annotation color customization .
 
 ## Features
-
-This plugin combines the functionality of three previous plugins:
-- **Annotation Utilities (AU)**: Translate annotations, export annotations/notes as Markdown, and smart copy
-- **Summary by AI**: Generate AI-powered summaries of PDF documents
-- **Colors and Autotag**: Auto-tag new items and customize annotation color names
 
 ### Annotation Utilities
 - **Translate**: Translate annotation text using Mistral AI
@@ -16,8 +11,6 @@ This plugin combines the functionality of three previous plugins:
 
 ### PDF Summarization
 - **Summarize PDFs**: Generate comprehensive summaries of PDF documents
-- **Text Extraction**: Extract text from PDFs for analysis
-- **Full Text Extraction**: Option to extract all text from the PDF file
 
 ### Auto-tagging
 - **Automatic /unread tag**: New items automatically receive the `/unread` tag (configurable)

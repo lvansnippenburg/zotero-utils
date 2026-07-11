@@ -1,0 +1,96 @@
+<vbox
+    xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+    xmlns:html="http://www.w3.org/1999/xhtml"
+>
+  <groupbox>
+    <label><html:h2>Mistral API Settings</html:h2></label>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="API Key:" control="mistral-api-key" style="min-width: 120px" />
+      <html:input
+                id="mistral-api-key"
+                type="password"
+                preference="extensions.zotero-utils.apiKey"
+                style="flex: 1"
+            />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="API Endpoint:" control="mistral-endpoint" style="min-width: 120px" />
+      <html:input
+                id="mistral-endpoint"
+                type="text"
+                preference="extensions.zotero-utils.apiEndpoint"
+                placeholder="https://api.mistral.ai/v1"
+                style="flex: 1"
+            />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Model:" control="ai-model" style="min-width: 120px" />
+      <menulist id="ai-model" preference="extensions.zotero-utils.model">
+        <menupopup>
+          <menuitem label="Mistral Large (Latest)" value="mistral-large-latest" />
+          <menuitem label="Mistral Small (Latest)" value="mistral-small-latest" />
+          <menuitem label="Mistral Tiny (Latest)" value="mistral-tiny-latest" />
+          <menuitem label="Codestral (Latest)" value="codestral-latest" />
+          <menuitem label="Mixtral 8x7B" value="mistral-mixtral-8x7b-latest" />
+          <menuitem label="Mixtral 8x22B" value="mistral-mixtral-8x22b-latest" />
+        </menupopup>
+      </menulist>
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Language:" control="ai-language" style="min-width: 120px" />
+      <menulist id="ai-language" preference="extensions.zotero-utils.language">
+        <menupopup>
+          <menuitem label="Dutch (Nederlands)" value="nl" />
+          <menuitem label="English" value="en" />
+        </menupopup>
+      </menulist>
+    </hbox>
+
+    <description style="margin-top: 10px">
+      Get an API key from: <a href="https://console.mistral.ai/" target="_blank">https://console.mistral.ai/</a>.
+    </description>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>Summary Settings</html:h2></label>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Extraction Mode:" control="extraction-mode" style="min-width: 120px" />
+      <menulist id="extraction-mode" preference="extensions.zotero-utils.extractionMode">
+        <menupopup>
+          <menuitem label="Text Only (Faster)" value="text" />
+          <menuitem label="Full Text Extraction (Thorough)" value="pdf" />
+        </menupopup>
+      </menulist>
+    </hbox>
+
+    <description style="margin-top: 10px">
+      <html:strong>Extraction Mode:</html:strong> "Text Only" uses Zotero's built-in text extraction from the current view.
+      "Full Text Extraction" attempts to extract all text from the PDF file. Note: Mistral API works with text only,
+      so both modes extract text before sending to the API.
+    </description>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>Export Settings</html:h2></label>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Export Path:" control="export-path" style="min-width: 120px" />
+      <html:input
+        id="export-path"
+        type="text"
+        preference="extensions.zotero-utils.exportPath"
+        placeholder="Leave empty to use home directory"
+        style="flex: 1"
+      />
+    </hbox>
+
+    <description>
+      Markdown files will be saved to this directory. Leave empty to save to your home directory.
+    </description>
+  </groupbox>
+</vbox>

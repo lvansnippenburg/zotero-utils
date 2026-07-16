@@ -1,8 +1,8 @@
 // API Settings
 pref("extensions.zotero-utils.apiKey", "");
-pref("extensions.zotero-utils.apiEndpoint", "https://api.mistral.ai/v1");
+pref("extensions.zotero-utils.apiEndpoint", "https://generativelanguage.googleapis.com/v1beta/openai");
 pref("extensions.zotero-utils.language", "nl");
-pref("extensions.zotero-utils.model", "mistral-large-latest");
+pref("extensions.zotero-utils.model", "gemini-2.5-flash-lite");
 
 // Summary Settings
 pref("extensions.zotero-utils.extractionMode", "text");

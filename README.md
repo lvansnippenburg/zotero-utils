@@ -1,11 +1,11 @@
 # Zotero Utils
 
-A Zotero plugin that provides annotation export (to markdown), PDF summarization and annotation translation (using the Mistral API), auto-tagging, and annotation color customization.
+A Zotero plugin that provides annotation export (to markdown), PDF summarization and annotation translation (using the Gemini API), auto-tagging, and annotation color customization.
 
 ## Features
 
 ### Annotation Utilities
-- **Translate**: Translate annotation text using Mistral AI
+- **Translate**: Translate annotation text using Gemini AI
 - **Export as Markdown**: Export annotations or notes as Markdown files with proper references
 - **Smart Copy**: Copy annotation with reference and page info to clipboard
 
@@ -29,10 +29,10 @@ A Zotero plugin that provides annotation export (to markdown), PDF summarization
 
 ## Configuration
 
-1. Get a Mistral API key from [https://console.mistral.ai/](https://console.mistral.ai/)
+1. Get a Gemini API key from [https://aistudio.google.com/](https://aistudio.google.com/)
 2. In Zotero, go to Edit > Preferences
 3. Find "Zotero Utils" in the left sidebar
-4. Enter your API key in the Mistral API Settings section
+4. Enter your API key in the Gemini API Settings section
 5. Configure your preferred model, language, and other settings
 
 ## Usage
@@ -60,14 +60,17 @@ A Zotero plugin that provides annotation export (to markdown), PDF summarization
 
 ## Preferences
 
-### Mistral API Settings
-- **API Key**: Your Mistral API key
-- **API Endpoint**: The Mistral API endpoint (default: https://api.mistral.ai/v1)
-- **Model**: Choose from available Mistral models
+### Gemini API Settings
+- **API Key**: Your Gemini API key
+- **API Endpoint**: The Gemini API endpoint (default: https://generativelanguage.googleapis.com/v1beta/openai)
+- **Model**: Choose from available Gemini models
 - **Language**: Default language for summaries and translations
 
 ### Summary Settings
-- **Extraction Mode**: Choose between "Text Only" (faster) or "Full Text Extraction" (thorough)
+- **Extraction Mode**: Choose between:
+  - **Text Only (Faster)**: Uses Zotero's built-in text extraction (faster).
+  - **Full Text Extraction (Thorough)**: Extracts text from the entire PDF before sending (thorough).
+  - **Send Native PDF (Multimodal)**: Sends the actual PDF file directly to Gemini's native API for multimodal analysis (recommended).
 
 ### Export Settings
 - **Export Path**: Directory where Markdown files will be saved (leave empty for home directory)
@@ -81,20 +84,18 @@ A Zotero plugin that provides annotation export (to markdown), PDF summarization
 
 ## Supported Models
 
-The plugin supports all Mistral API models, including:
-- mistral-large-latest
-- mistral-small-latest
-- mistral-tiny-latest
-- codestral-latest
-- mistral-mixtral-8x7b-latest
-- mistral-mixtral-8x22b-latest
+The plugin supports Gemini API models via the OpenAI-compatible endpoint, including:
+- gemini-2.5-flash-lite
+- gemini-2.0-flash
+- gemini-1.5-flash
+- gemini-1.5-pro
 
 ## API Notes
 
-- You need a Mistral API key to use the AI features
+- You need a Gemini API key to use the AI features
 - API calls consume tokens and may incur costs depending on your plan
 - The free tier has generous limits for testing
-- See [Mistral Pricing](https://mistral.ai/pricing/) for details
+- See [Gemini Pricing](https://ai.google.dev/pricing) for details
 
 ## License
 
@@ -107,4 +108,4 @@ This plugin was created by combining and modifying three previous plugins:
 - **Summary by AI**: PDF summarization
 - **Colors and Autotag**: Auto-tagging and color customization
 
-All original plugins that used AI have been updated to use Mistral AI instead of Google's Gemini API.
+The plugin uses Google's Gemini API.

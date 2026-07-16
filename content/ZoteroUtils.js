@@ -9,7 +9,7 @@ ZoteroUtils = {
   // Auto-tag settings
   autoTagEnabled: true,
   unreadTag: "/unread",
-  
+
   // Annotation color customization
   colorLabelMap: {
     "#ffd400": "&nbsp;Interessant punt", // Yellow
@@ -28,13 +28,13 @@ ZoteroUtils = {
       selectItem: "Selecteer een PDF-item",
       noPDF: "Geen PDF gevonden",
       configureAPI: "Configureer eerst uw API key in de voorkeuren",
-      processing: "Tekst wordt gextraheerd...",
+      processing: "Tekst wordt geëxtraheerd...",
       sendingToAPI: "Verzenden naar AI...",
       success: "Samenvatting succesvol toegevoegd!",
       error: "Fout",
       noteTitle: "Samenvatting (AI)",
       headline: "Samenvatting (AI)",
-      prompt: "Geef een uitgebreide samenvatting van dit document in het Nederlands. Behandel de belangrijkste punten, argumenten en conclusies.",
+      prompt: "Geef een uitgebreide samenvatting van dit document in het Nederlands. Behandel de belangrijkste punten, argumenten en conclusies. Geef geen andere commentaren dan de samenvatting zoals gevraagd, dus ook geen inleidende beschrijving.",
       translateLabel: "Vertalen",
       exportMarkdownLabel: "Exporteer als Markdown",
       smartCopyLabel: "Slim Kopieren",
@@ -69,7 +69,7 @@ ZoteroUtils = {
 
   init({ id, version, rootURI }) {
     if (this.initialized) return;
-    
+
     this.id = id;
     this.version = version;
     this.rootURI = rootURI;
@@ -147,7 +147,7 @@ ZoteroUtils = {
   setupAutoTagging() {
     // Check if auto-tagging is enabled (default: true)
     this.autoTagEnabled = Zotero.Prefs.get(this.PREF_BRANCH + "autoTagEnabled", true) !== false;
-    
+
     if (this.autoTagEnabled) {
       // Register notifier for new items - adds /unread tag
       this.notifierID = Zotero.Notifier.registerObserver(
@@ -234,7 +234,7 @@ ZoteroUtils = {
 
     // Add summarize menu item to item context menu
     this.addSummarizeMenuItem(doc);
-    
+
     // Add annotation context menu items (from AU plugin)
     this.addAnnotationContextMenuItems(window);
   },
@@ -466,11 +466,31 @@ ZoteroUtils = {
         // Update progress
         progressWin.addLines([this.getString("sendingToAPI")]);
 
-        // Call Mistral API with extracted text
+        // Call Gemini API with extracted text
         summary = await this.callAPIText(apiKey, pdfText);
+      } else if (extractionMode === "native") {
+        // Send native PDF directly to Gemini
+        Zotero.getMainWindow().console.log("zotero-utils: processing native PDF (sending to Gemini)");
+
+        // Get file and read
+        const filePath = await pdfItem.getFilePathAsync();
+        const data = await IOUtils.read(filePath);
+
+        Zotero.getMainWindow().console.log(
+          "zotero-utils: file size " + data.length + " bytes",
+        );
+
+        // Update progress
+        progressWin.addLines([this.getString("sendingToAPI")]);
+
+        // Convert to base64
+        const base64Data = this.arrayBufferToBase64(data.buffer || data);
+
+        // Call Gemini API with native PDF
+        summary = await this.callAPIPDF(apiKey, base64Data);
       } else {
         // Full PDF mode - extract text from all pages
-        // Note: Mistral API doesn't support PDF files directly, so we extract text
+        // Note: Gemini API doesn't support PDF files directly, so we extract text
         Zotero.getMainWindow().console.log("zotero-utils: processing full PDF (text extraction)");
 
         // Get file and read as base64
@@ -481,13 +501,13 @@ ZoteroUtils = {
           "zotero-utils: file size " + data.length + " bytes",
         );
 
-        // For Mistral, we need to extract text from the PDF
+        // For Gemini, we need to extract text from the PDF
         // Try to use Zotero's text extraction first
         let pdfText = await pdfItem.attachmentText;
-        
+
         if (!pdfText || pdfText.trim().length === 0) {
           // If text extraction fails, try to extract text from the PDF data
-          // This is a fallback - Mistral API doesn't support PDF files directly
+          // This is a fallback - Gemini API doesn't support PDF files directly
           Zotero.getMainWindow().console.log("zotero-utils: falling back to manual text extraction");
           pdfText = await this.extractTextFromPDF(data);
         }
@@ -506,7 +526,7 @@ ZoteroUtils = {
         // Update progress
         progressWin.addLines([this.getString("sendingToAPI")]);
 
-        // Call Mistral API with extracted text
+        // Call Gemini API with extracted text
         summary = await this.callAPIText(apiKey, pdfText);
       }
 
@@ -536,18 +556,18 @@ ZoteroUtils = {
     return btoa(binary);
   },
 
-  // ==================== MISTRAL API FUNCTIONS (replaces Gemini) ====================
+  // ==================== GEMINI API FUNCTIONS ====================
 
   async callAPIText(apiKey, pdfText) {
-    const model = Zotero.Prefs.get(this.PREF_BRANCH + "model", true) || "mistral-large-latest";
-    const endpoint = Zotero.Prefs.get(this.PREF_BRANCH + "apiEndpoint", true) || "https://api.mistral.ai/v1";
+    const model = Zotero.Prefs.get(this.PREF_BRANCH + "model", true) || "gemini-2.5-flash-lite";
+    const endpoint = Zotero.Prefs.get(this.PREF_BRANCH + "apiEndpoint", true) || "https://generativelanguage.googleapis.com/v1beta/openai";
     const url = endpoint + "/chat/completions";
 
-    Zotero.getMainWindow().console.log("zotero-utils: calling Mistral API, model=" + model);
+    Zotero.getMainWindow().console.log("zotero-utils: calling Gemini API, model=" + model);
 
     const prompt = this.getString("prompt");
 
-    // Build request for Mistral API
+    // Build request for Gemini API
     const requestBody = {
       model: model,
       messages: [
@@ -560,7 +580,7 @@ ZoteroUtils = {
       max_tokens: 2000
     };
 
-    Zotero.getMainWindow().console.log("zotero-utils: posting text to Mistral API");
+    Zotero.getMainWindow().console.log("zotero-utils: posting text to Gemini API");
 
     const xhr = await Zotero.HTTP.request("POST", url, {
       headers: {
@@ -571,18 +591,18 @@ ZoteroUtils = {
     });
 
     if (xhr.status !== 200) {
-      Zotero.getMainWindow().console.log("zotero-utils: Mistral API request returned: " + xhr.status);
+      Zotero.getMainWindow().console.log("zotero-utils: Gemini API request returned: " + xhr.status);
       Zotero.getMainWindow().console.log(
         "zotero-utils: response body: " + JSON.stringify(xhr.response),
       );
       const errBody = typeof xhr.response === "string" ? JSON.parse(xhr.response) : xhr.response;
       const errorMsg = errBody && errBody.error ? errBody.error.message : xhr.statusText;
-      throw new Error("Mistral API Error " + xhr.status + ": " + errorMsg);
+      throw new Error("Gemini API Error " + xhr.status + ": " + errorMsg);
     } else {
-      Zotero.getMainWindow().console.log("zotero-utils: Mistral API request returned: " + xhr.status);
+      Zotero.getMainWindow().console.log("zotero-utils: Gemini API request returned: " + xhr.status);
     }
 
-    Zotero.getMainWindow().console.log("zotero-utils: Mistral API call completed");
+    Zotero.getMainWindow().console.log("zotero-utils: Gemini API call completed");
 
     const response = JSON.parse(xhr.response);
 
@@ -590,16 +610,82 @@ ZoteroUtils = {
       response.choices[0].message && response.choices[0].message.content) {
       return response.choices[0].message.content;
     } else {
-      Zotero.getMainWindow().console.log("zotero-utils: No summary received from Mistral model.");
+      Zotero.getMainWindow().console.log("zotero-utils: No summary received from Gemini model.");
       Zotero.getMainWindow().console.log(
         "zotero-utils: Full response: " + JSON.stringify(response),
       );
-      throw new Error("No summary received from Mistral model");
+      throw new Error("No summary received from Gemini model");
     }
   },
 
-  // Mistral API doesn't support PDF files directly, so we use text extraction
-  // This is a placeholder for future support if Mistral adds PDF processing
+  async callAPIPDF(apiKey, base64Data) {
+    const model = Zotero.Prefs.get(this.PREF_BRANCH + "model", true) || "gemini-2.5-flash-lite";
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
+
+    Zotero.getMainWindow().console.log("zotero-utils: calling Gemini Native API for PDF, model=" + model);
+
+    const promptText = this.getString("prompt");
+
+    // Build native request for Gemini API
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              inlineData: {
+                mimeType: "application/pdf",
+                data: base64Data
+              }
+            },
+            {
+              text: promptText
+            }
+          ]
+        }
+      ]
+    };
+
+    Zotero.getMainWindow().console.log("zotero-utils: posting native PDF to Gemini API");
+
+    const xhr = await Zotero.HTTP.request("POST", url, {
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (xhr.status !== 200) {
+      Zotero.getMainWindow().console.log("zotero-utils: Gemini Native API request returned: " + xhr.status);
+      Zotero.getMainWindow().console.log(
+        "zotero-utils: response body: " + JSON.stringify(xhr.response),
+      );
+      const errBody = typeof xhr.response === "string" ? JSON.parse(xhr.response) : xhr.response;
+      const errorMsg = errBody && errBody.error ? errBody.error.message : xhr.statusText;
+      throw new Error("Gemini API Error " + xhr.status + ": " + errorMsg);
+    } else {
+      Zotero.getMainWindow().console.log("zotero-utils: Gemini Native API request returned: " + xhr.status);
+    }
+
+    Zotero.getMainWindow().console.log("zotero-utils: Gemini Native API call completed");
+
+    const response = JSON.parse(xhr.response);
+
+    if (response.candidates && response.candidates.length > 0 &&
+        response.candidates[0].content && response.candidates[0].content.parts &&
+        response.candidates[0].content.parts.length > 0 &&
+        response.candidates[0].content.parts[0].text) {
+      return response.candidates[0].content.parts[0].text;
+    } else {
+      Zotero.getMainWindow().console.log("zotero-utils: No summary received from Gemini native model.");
+      Zotero.getMainWindow().console.log(
+        "zotero-utils: Full response: " + JSON.stringify(response),
+      );
+      throw new Error("No summary received from Gemini native model");
+    }
+  },
+
+  // Gemini API doesn't support PDF files directly, so we use text extraction
+  // This is a placeholder for future support if Gemini adds PDF processing
   async extractTextFromPDF(pdfData) {
     // For now, just return empty - text extraction should be handled by Zotero
     // In the future, we could implement PDF.js or another library for text extraction
@@ -631,7 +717,7 @@ ZoteroUtils = {
     await note.saveTx();
   },
 
-  // ==================== TRANSLATION FUNCTION (from AU plugin, changed to Mistral) ====================
+  // ==================== TRANSLATION FUNCTION (from AU plugin, changed to Gemini) ====================
 
   async translateAnnotation(annotationItem, reader) {
     // Show progress window
@@ -662,8 +748,8 @@ ZoteroUtils = {
     const lang = Zotero.Prefs.get(this.PREF_BRANCH + "language", true) || "nl";
 
     try {
-      const model = Zotero.Prefs.get(this.PREF_BRANCH + "model", true) || "mistral-large-latest";
-      const endpoint = Zotero.Prefs.get(this.PREF_BRANCH + "apiEndpoint", true) || "https://api.mistral.ai/v1";
+      const model = Zotero.Prefs.get(this.PREF_BRANCH + "model", true) || "gemini-2.5-flash-lite";
+      const endpoint = Zotero.Prefs.get(this.PREF_BRANCH + "apiEndpoint", true) || "https://generativelanguage.googleapis.com/v1beta/openai";
       const url = endpoint + "/chat/completions";
 
       const prompt = "Translate the following text to " + lang + ". Reply with only the translation, no explanation or preamble:\n\n" + text;
@@ -694,13 +780,13 @@ ZoteroUtils = {
       if (xhr.status !== 200) {
         const errBody = typeof xhr.response === "string" ? JSON.parse(xhr.response) : xhr.response;
         const errorMsg = errBody && errBody.error ? errBody.error.message : xhr.statusText;
-        throw new Error("Mistral API Error " + xhr.status + ": " + errorMsg);
+        throw new Error("Gemini API Error " + xhr.status + ": " + errorMsg);
       }
 
       const response = xhr.response;
 
       if (!response.choices || response.choices.length === 0 || !response.choices[0].message?.content) {
-        throw new Error("No translation received from Mistral");
+        throw new Error("No translation received from Gemini");
       }
 
       const translation = response.choices[0].message.content.trim();
@@ -1066,7 +1152,7 @@ ZoteroUtils = {
     var script = 'tell application "Notes"' + "\n";
     script += "\ttell default account" + "\n";
     script += '\t\ttell folder "annotations"' + "\n";
-    script += 
+    script +=
       '\t\t\tmake new note with properties { name: "' +
       title +
       '", body: "' +

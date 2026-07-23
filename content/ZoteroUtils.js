@@ -981,10 +981,19 @@ ZoteroUtils = {
     }
   },
 
-  _copyToClipboard(text) {
-    Components.classes["@mozilla.org/widget/clipboardhelper;1"]
-      .getService(Components.interfaces.nsIClipboardHelper)
-      .copyString(text);
+  async _copyToClipboard(text) {
+    const win = Zotero.getMainWindow();
+    // Let the native context menu finish closing before touching the pasteboard;
+    // a synchronous XPCOM copyString here segfaults Zotero on recent macOS
+    await new Promise((resolve) => win.setTimeout(resolve, 0));
+    try {
+      await win.navigator.clipboard.writeText(text);
+    } catch (e) {
+      Zotero.debug("ZoteroUtils: async clipboard failed, falling back: " + e);
+      Components.classes["@mozilla.org/widget/clipboardhelper;1"]
+        .getService(Components.interfaces.nsIClipboardHelper)
+        .copyString(text);
+    }
   },
 
   // Copy "Chicago reference, page; year found in text; annotation zotero:// link"
@@ -1017,8 +1026,13 @@ ZoteroUtils = {
     const textYear = yearMatch ? yearMatch[1] : "";
 
     const parts = [reference, textYear, pdfLink];
-    this._copyToClipboard(parts.join("; "));
-    this.showMessage(this.getString("smartCopyLabel"), this.getString("smartCopySuccess"));
+    try {
+      await this._copyToClipboard(parts.join("; "));
+      this.showMessage(this.getString("smartCopyLabel"), this.getString("smartCopySuccess"));
+    } catch (e) {
+      Zotero.debug("ZoteroUtils: smart copy error: " + e);
+      this.showMessage(this.getString("smartCopyLabel"), this.getString("error") + ": " + e.message);
+    }
   },
 
   // ==================== MARKDOWN TO HTML CONVERSION (from zotero-summary-by-ai) ====================

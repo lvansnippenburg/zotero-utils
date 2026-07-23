@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zotero Utils",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Combined Zotero utilities: annotation translation/export and PDF summarization using Gemini API",
   "author": "Leo van Snippenburg",
   "applications": {

@@ -2,7 +2,7 @@
 pref("extensions.zotero-utils.apiKey", "");
 pref("extensions.zotero-utils.apiEndpoint", "https://generativelanguage.googleapis.com/v1beta/openai");
 pref("extensions.zotero-utils.language", "nl");
-pref("extensions.zotero-utils.model", "gemini-2.5-flash-lite");
+pref("extensions.zotero-utils.model", "gemini-flash-lite-latest");
 
 // Summary Settings
 pref("extensions.zotero-utils.extractionMode", "text");

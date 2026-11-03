@@ -3,6 +3,66 @@
     xmlns:html="http://www.w3.org/1999/xhtml"
 >
   <groupbox>
+    <label><html:h2>AI Provider</html:h2></label>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Provider:" control="ai-provider" style="min-width: 120px" />
+      <menulist id="ai-provider" preference="extensions.zotero-utils.provider">
+        <menupopup>
+          <menuitem label="Google Gemini" value="gemini" />
+          <menuitem label="Local LLM server (OpenAI API)" value="local" />
+        </menupopup>
+      </menulist>
+    </hbox>
+
+    <description>
+      Choose which AI service is used for summaries and translations.
+    </description>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>Local LLM Settings</html:h2></label>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Endpoint:" control="local-endpoint" style="min-width: 120px" />
+      <html:input
+                id="local-endpoint"
+                type="text"
+                preference="extensions.zotero-utils.localEndpoint"
+                placeholder="http://127.0.0.1:8000/v1"
+                style="flex: 1"
+            />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Model name:" control="local-model" style="min-width: 120px" />
+      <html:input
+                id="local-model"
+                type="text"
+                preference="extensions.zotero-utils.localModel"
+                style="flex: 1"
+            />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 10px">
+      <label value="Password:" control="local-api-key" style="min-width: 120px" />
+      <html:input
+                id="local-api-key"
+                type="password"
+                preference="extensions.zotero-utils.localApiKey"
+                placeholder="Leave empty if the server needs no password"
+                style="flex: 1"
+            />
+    </hbox>
+
+    <description style="margin-top: 10px">
+      Used when the provider is "Local LLM server". The server must provide an OpenAI-compatible
+      /chat/completions endpoint. The password is sent as a Bearer token. "Send Native PDF" is not
+      supported by local servers; extracted text is sent instead.
+    </description>
+  </groupbox>
+
+  <groupbox>
     <label><html:h2>Gemini API Settings</html:h2></label>
 
     <hbox align="center" style="margin-bottom: 10px">

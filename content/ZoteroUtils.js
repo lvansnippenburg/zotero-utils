@@ -28,11 +28,13 @@ ZoteroUtils = {
       selectItem: "Selecteer een PDF-item",
       noPDF: "Geen PDF gevonden",
       configureAPI: "Configureer eerst uw API key in de voorkeuren",
+      configureLocal: "Configureer eerst de modelnaam van de lokale LLM in de voorkeuren",
       processing: "Tekst wordt geëxtraheerd...",
       sendingToAPI: "Verzenden naar AI...",
       success: "Samenvatting succesvol toegevoegd!",
       error: "Fout",
-      noteTitle: "Samenvatting (AI)",
+      noteTitle: "Samenvatting",
+      createdByAI: "gemaakt door AI",
       headline: "Samenvatting (AI)",
       prompt: "Geef een uitgebreide samenvatting van dit document in het Nederlands. Behandel de belangrijkste punten, argumenten en conclusies. Geef geen andere commentaren dan de samenvatting zoals gevraagd, dus ook geen inleidende beschrijving.",
       translateLabel: "Vertalen",
@@ -49,11 +51,13 @@ ZoteroUtils = {
       selectItem: "Select a PDF item",
       noPDF: "No PDF found",
       configureAPI: "Please configure your API key in preferences first",
+      configureLocal: "Please configure the local LLM model name in preferences first",
       processing: "Extracting text...",
       sendingToAPI: "Sending to AI...",
       success: "Summary successfully added!",
       error: "Error",
-      noteTitle: "Summary (AI)",
+      noteTitle: "Summary",
+      createdByAI: "created by AI",
       headline: "Summary (AI)",
       prompt: "Provide a comprehensive summary of this document in English. Cover the main points, arguments, and conclusions.",
       translateLabel: "Translate",
@@ -113,10 +117,11 @@ ZoteroUtils = {
     Zotero.Reader.unregisterEventListener("renderSidebarAnnotationHeader", this.id);
 
     // Remove item-tree menu items and their listeners
-    for (const { menuitem, popup, onPopup } of this.addedElements) {
+    for (const { menuitem, popup, onPopup, capture, cleanup } of this.addedElements) {
       try {
-        if (popup && onPopup) popup.removeEventListener("popupshowing", onPopup);
+        if (popup && onPopup) popup.removeEventListener("popupshowing", onPopup, !!capture);
         if (menuitem && menuitem.parentNode) menuitem.remove();
+        if (cleanup) cleanup();
       } catch (e) {
         Zotero.getMainWindow().console.log("ZoteroUtils: uninit menu cleanup error: " + e);
       }
@@ -281,11 +286,14 @@ ZoteroUtils = {
       separator.remove();
     }
 
-    // Remove annotation context menu items
-    for (const { menuitem: annMenuItem, popup: annPopup, onPopup } of this.addedElements) {
+    // Remove annotation context menu items belonging to this window only
+    const own = this.addedElements.filter((e) => e.win === window);
+    this.addedElements = this.addedElements.filter((e) => e.win !== window);
+    for (const { menuitem: annMenuItem, popup: annPopup, onPopup, capture, cleanup } of own) {
       try {
-        if (annPopup && onPopup) annPopup.removeEventListener("popupshowing", onPopup);
+        if (annPopup && onPopup) annPopup.removeEventListener("popupshowing", onPopup, !!capture);
         if (annMenuItem && annMenuItem.parentNode) annMenuItem.remove();
+        if (cleanup) cleanup();
       } catch (e) {
         window.console.log("ZoteroUtils: remove annotation menu error: " + e);
       }
@@ -293,10 +301,12 @@ ZoteroUtils = {
   },
 
   addAnnotationContextMenuItems(window) {
-    // Register an item-tree context menu entry for notes export
-    const itemmenu = window.document.getElementById("zotero-itemmenu");
-    if (itemmenu) {
-      const menuitem = window.document.createXULElement("menuitem");
+    const doc = window.document;
+
+    // 1. Item-tree context menu: standalone (top-level) notes and child notes of library items
+    const itemmenu = doc.getElementById("zotero-itemmenu");
+    if (itemmenu && !doc.getElementById("zotero-utils-export-note")) {
+      const menuitem = doc.createXULElement("menuitem");
       menuitem.id = "zotero-utils-export-note";
       menuitem.setAttribute("label", this.getString("exportMarkdownLabel"));
       menuitem.addEventListener("command", async () => {
@@ -304,7 +314,7 @@ ZoteroUtils = {
           const items = window.ZoteroPane.getSelectedItems();
           for (const item of items) {
             if (item.isNote()) {
-              await this.exportAnnotation(item);
+              await this.exportNote(item);
             }
           }
         } catch (e) {
@@ -312,15 +322,57 @@ ZoteroUtils = {
         }
       });
 
-      const onPopup = () => {
+      const onPopup = (event) => {
+        if (event.target !== itemmenu) return; // ignore submenus
         const items = window.ZoteroPane.getSelectedItems();
+        menuitem.setAttribute("label", this.getString("exportMarkdownLabel"));
         menuitem.hidden = !(items.length > 0 && items.every((i) => i.isNote()));
       };
       itemmenu.addEventListener("popupshowing", onPopup);
       itemmenu.appendChild(menuitem);
 
-      this.addedElements.push({ menuitem, popup: itemmenu, onPopup });
+      this.addedElements.push({ win: window, menuitem, popup: itemmenu, onPopup });
     }
+
+    // 2. Notes pane in the PDF reader's context pane (child and standalone notes).
+    // Zotero creates one notes-context per library lazily, so listen on the document
+    // and add the menu item the first time each notes-list popup is shown.
+    const NOTES_PANE_CLASS = "zotero-utils-export-note-ctx";
+    const onNotesPanePopup = (event) => {
+      const popup = event.target;
+      if (!popup.classList || !popup.classList.contains("context-pane-list-popup")) return;
+
+      let menuitem = popup.querySelector(":scope > ." + NOTES_PANE_CLASS);
+      if (!menuitem) {
+        menuitem = doc.createXULElement("menuitem");
+        menuitem.classList.add(NOTES_PANE_CLASS);
+        menuitem.addEventListener("command", async () => {
+          try {
+            const item = Zotero.Items.get(parseInt(popup.dataset.itemId));
+            if (item && item.isNote()) {
+              await this.exportNote(item);
+            }
+          } catch (e) {
+            window.console.log("ZoteroUtils: export note (notes pane) error: " + e);
+          }
+        });
+        // Place it before the separator that precedes "Move to Trash"
+        const separator = popup.querySelector(":scope > menuseparator");
+        popup.insertBefore(menuitem, separator);
+      }
+      menuitem.setAttribute("label", this.getString("exportMarkdownLabel"));
+    };
+    doc.addEventListener("popupshowing", onNotesPanePopup, true);
+
+    this.addedElements.push({
+      win: window,
+      popup: doc,
+      onPopup: onNotesPanePopup,
+      capture: true,
+      cleanup: () => {
+        for (const el of doc.querySelectorAll("." + NOTES_PANE_CLASS)) el.remove();
+      },
+    });
   },
 
   handleAnnotationContextMenu(event) {
@@ -428,11 +480,11 @@ ZoteroUtils = {
     }
 
     try {
-      // Get API key
-      const apiKey = Zotero.Prefs.get(this.PREF_BRANCH + "apiKey", true);
+      // Get LLM configuration (Gemini or local server)
+      const cfg = this.getLLMConfig();
 
-      if (!apiKey) {
-        this.showMessage(this.getString("configureAPI"));
+      if (!this.isLLMConfigured(cfg)) {
+        this.showMessage(this.getString(cfg.provider === "local" ? "configureLocal" : "configureAPI"));
         return;
       }
 
@@ -441,10 +493,15 @@ ZoteroUtils = {
       progressWin.changeHeadline(this.getString("headline"));
       progressWin.addLines([this.getString("processing")]);
       progressWin.show();
-      progressWin.startCloseTimer(120000);
+      progressWin.startCloseTimer(cfg.timeout);
 
       // Check extraction mode preference
-      const extractionMode = Zotero.Prefs.get(this.PREF_BRANCH + "extractionMode", true) || "text";
+      let extractionMode = Zotero.Prefs.get(this.PREF_BRANCH + "extractionMode", true) || "text";
+      if (extractionMode === "native" && cfg.provider === "local") {
+        // Native PDF upload is Gemini-only; local OpenAI-compatible servers get extracted text
+        Zotero.getMainWindow().console.log("zotero-utils: native PDF mode not supported by local LLM, falling back to text extraction");
+        extractionMode = "text";
+      }
       let summary;
 
       if (extractionMode === "text") {
@@ -467,7 +524,7 @@ ZoteroUtils = {
         progressWin.addLines([this.getString("sendingToAPI")]);
 
         // Call Gemini API with extracted text
-        summary = await this.callAPIText(apiKey, pdfText);
+        summary = await this.callAPIText(cfg, pdfText);
       } else if (extractionMode === "native") {
         // Send native PDF directly to Gemini
         Zotero.getMainWindow().console.log("zotero-utils: processing native PDF (sending to Gemini)");
@@ -487,7 +544,7 @@ ZoteroUtils = {
         const base64Data = this.arrayBufferToBase64(data.buffer || data);
 
         // Call Gemini API with native PDF
-        summary = await this.callAPIPDF(apiKey, base64Data);
+        summary = await this.callAPIPDF(cfg.apiKey, base64Data);
       } else {
         // Full PDF mode - extract text from all pages
         // Note: Gemini API doesn't support PDF files directly, so we extract text
@@ -527,13 +584,13 @@ ZoteroUtils = {
         progressWin.addLines([this.getString("sendingToAPI")]);
 
         // Call Gemini API with extracted text
-        summary = await this.callAPIText(apiKey, pdfText);
+        summary = await this.callAPIText(cfg, pdfText);
       }
 
       progressWin.close();
 
       // Add summary as note
-      await this.addSummaryNote(pdfItem, summary);
+      await this.addSummaryNote(pdfItem, summary, cfg.model);
 
       this.showMessage(this.getString("success"));
     } catch (error) {
@@ -556,18 +613,73 @@ ZoteroUtils = {
     return btoa(binary);
   },
 
-  // ==================== GEMINI API FUNCTIONS ====================
+  // ==================== LLM API FUNCTIONS ====================
 
-  async callAPIText(apiKey, pdfText) {
-    const model = Zotero.Prefs.get(this.PREF_BRANCH + "model", true) || "gemini-2.5-flash-lite";
-    const endpoint = Zotero.Prefs.get(this.PREF_BRANCH + "apiEndpoint", true) || "https://generativelanguage.googleapis.com/v1beta/openai";
-    const url = endpoint + "/chat/completions";
+  // Returns the active LLM configuration based on the "provider" preference.
+  getLLMConfig() {
+    const get = (name) => Zotero.Prefs.get(this.PREF_BRANCH + name, true);
+    const provider = get("provider") === "local" ? "local" : "gemini";
 
-    Zotero.getMainWindow().console.log("zotero-utils: calling Gemini API, model=" + model);
+    if (provider === "local") {
+      const endpoint = (get("localEndpoint") || "http://127.0.0.1:8000/v1").trim().replace(/\/+$/, "");
+      return {
+        provider,
+        endpoint,
+        model: (get("localModel") || "").trim(),
+        apiKey: (get("localApiKey") || "").trim(),
+        label: "Local LLM",
+        timeout: 600000, // local models can be slow on long documents
+      };
+    }
+
+    const endpoint = (get("apiEndpoint") || "https://generativelanguage.googleapis.com/v1beta/openai").trim().replace(/\/+$/, "");
+    return {
+      provider,
+      endpoint,
+      model: get("model") || "gemini-2.5-flash-lite",
+      apiKey: get("apiKey") || "",
+      label: "Gemini",
+      timeout: 120000,
+    };
+  },
+
+  isLLMConfigured(cfg) {
+    return cfg.provider === "local" ? !!cfg.model : !!cfg.apiKey;
+  },
+
+  getLLMHeaders(cfg) {
+    const headers = { "Content-Type": "application/json" };
+    if (cfg.apiKey) {
+      headers["Authorization"] = "Bearer " + cfg.apiKey;
+    }
+    return headers;
+  },
+
+  getErrorMessage(xhr) {
+    try {
+      const errBody = typeof xhr.response === "string" ? JSON.parse(xhr.response) : xhr.response;
+      if (errBody && errBody.error) {
+        return typeof errBody.error === "string" ? errBody.error : errBody.error.message;
+      }
+      if (errBody && errBody.detail) {
+        return typeof errBody.detail === "string" ? errBody.detail : JSON.stringify(errBody.detail);
+      }
+    } catch (e) {
+      // non-JSON error body
+    }
+    return xhr.statusText;
+  },
+
+  async callAPIText(cfg, pdfText) {
+    const model = cfg.model;
+    const url = cfg.endpoint + "/chat/completions";
+    const label = cfg.label;
+
+    Zotero.getMainWindow().console.log("zotero-utils: calling " + label + " API at " + url + ", model=" + model);
 
     const prompt = this.getString("prompt");
 
-    // Build request for Gemini API
+    // Build OpenAI-compatible chat completion request
     const requestBody = {
       model: model,
       messages: [
@@ -580,41 +692,47 @@ ZoteroUtils = {
       max_tokens: 2000
     };
 
-    Zotero.getMainWindow().console.log("zotero-utils: posting text to Gemini API");
+    Zotero.getMainWindow().console.log("zotero-utils: posting text to " + label + " API");
 
-    const xhr = await Zotero.HTTP.request("POST", url, {
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + apiKey
-      },
-      body: JSON.stringify(requestBody)
-    });
+    let xhr;
+    try {
+      xhr = await Zotero.HTTP.request("POST", url, {
+        headers: this.getLLMHeaders(cfg),
+        body: JSON.stringify(requestBody),
+        timeout: cfg.timeout,
+      });
+    } catch (e) {
+      // Zotero.HTTP throws on non-2xx responses and on connection errors
+      if (e.xmlhttp && e.xmlhttp.status) {
+        xhr = e.xmlhttp;
+      } else {
+        throw new Error(label + " API not reachable at " + url + ": " + (e.message || e));
+      }
+    }
 
     if (xhr.status !== 200) {
-      Zotero.getMainWindow().console.log("zotero-utils: Gemini API request returned: " + xhr.status);
+      Zotero.getMainWindow().console.log("zotero-utils: " + label + " API request returned: " + xhr.status);
       Zotero.getMainWindow().console.log(
         "zotero-utils: response body: " + JSON.stringify(xhr.response),
       );
-      const errBody = typeof xhr.response === "string" ? JSON.parse(xhr.response) : xhr.response;
-      const errorMsg = errBody && errBody.error ? errBody.error.message : xhr.statusText;
-      throw new Error("Gemini API Error " + xhr.status + ": " + errorMsg);
+      throw new Error(label + " API Error " + xhr.status + ": " + this.getErrorMessage(xhr));
     } else {
-      Zotero.getMainWindow().console.log("zotero-utils: Gemini API request returned: " + xhr.status);
+      Zotero.getMainWindow().console.log("zotero-utils: " + label + " API request returned: " + xhr.status);
     }
 
-    Zotero.getMainWindow().console.log("zotero-utils: Gemini API call completed");
+    Zotero.getMainWindow().console.log("zotero-utils: " + label + " API call completed");
 
-    const response = JSON.parse(xhr.response);
+    const response = typeof xhr.response === "string" ? JSON.parse(xhr.response) : xhr.response;
 
     if (response.choices && response.choices.length > 0 &&
       response.choices[0].message && response.choices[0].message.content) {
       return response.choices[0].message.content;
     } else {
-      Zotero.getMainWindow().console.log("zotero-utils: No summary received from Gemini model.");
+      Zotero.getMainWindow().console.log("zotero-utils: No summary received from " + label + " model.");
       Zotero.getMainWindow().console.log(
         "zotero-utils: Full response: " + JSON.stringify(response),
       );
-      throw new Error("No summary received from Gemini model");
+      throw new Error("No summary received from " + label + " model");
     }
   },
 
@@ -693,7 +811,7 @@ ZoteroUtils = {
     return "";
   },
 
-  async addSummaryNote(pdfItem, summary) {
+  async addSummaryNote(pdfItem, summary, model) {
     const note = new Zotero.Item("note");
 
     // Attach to parent item if PDF is an attachment
@@ -711,7 +829,13 @@ ZoteroUtils = {
     // Convert Markdown to HTML
     const htmlSummary = this.markdownToHTML(summary);
 
-    const htmlContent = "<h2>" + noteTitle + " (" + date + ")</h2>" + htmlSummary;
+    // First body line: "created by AI, <model>, <date>", followed by a blank line
+    const createdLine = this.getString("createdByAI") + ", " + this.escapeHTML(model || "") + ", " + date;
+
+    const htmlContent = "<h2>" + noteTitle + "</h2>" +
+      "<p>" + createdLine + "</p>" +
+      "<p></p>" +
+      htmlSummary;
 
     note.setNote(htmlContent);
     await note.saveTx();
@@ -725,7 +849,8 @@ ZoteroUtils = {
     const progressWin = new Zotero.ProgressWindow({ window: mw });
     progressWin.changeHeadline(this.getString("translateLabel"));
     progressWin.addLines(["Translating..."]);
-    progressWin.startCloseTimer(120000);
+    const cfg = this.getLLMConfig();
+    progressWin.startCloseTimer(cfg.timeout);
     mw.setTimeout(() => {
       progressWin.show();
     }, 0);
@@ -736,11 +861,11 @@ ZoteroUtils = {
       return;
     }
 
-    const apiKey = Zotero.Prefs.get(this.PREF_BRANCH + "apiKey", true);
-    if (!apiKey) {
+    if (!this.isLLMConfigured(cfg)) {
+      progressWin.close();
       this.showMessage(
         this.getString("translateLabel"),
-        this.getString("configureAPI")
+        this.getString(cfg.provider === "local" ? "configureLocal" : "configureAPI")
       );
       return;
     }
@@ -748,9 +873,9 @@ ZoteroUtils = {
     const lang = Zotero.Prefs.get(this.PREF_BRANCH + "language", true) || "nl";
 
     try {
-      const model = Zotero.Prefs.get(this.PREF_BRANCH + "model", true) || "gemini-2.5-flash-lite";
-      const endpoint = Zotero.Prefs.get(this.PREF_BRANCH + "apiEndpoint", true) || "https://generativelanguage.googleapis.com/v1beta/openai";
-      const url = endpoint + "/chat/completions";
+      const model = cfg.model;
+      const url = cfg.endpoint + "/chat/completions";
+      const label = cfg.label;
 
       const prompt = "Translate the following text to " + lang + ". Reply with only the translation, no explanation or preamble:\n\n" + text;
 
@@ -766,27 +891,32 @@ ZoteroUtils = {
         max_tokens: 1000
       };
 
-      const xhr = await Zotero.HTTP.request("POST", url, {
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + apiKey
-        },
-        body: JSON.stringify(requestBody),
-        responseType: "json",
-      });
+      let xhr;
+      try {
+        xhr = await Zotero.HTTP.request("POST", url, {
+          headers: this.getLLMHeaders(cfg),
+          body: JSON.stringify(requestBody),
+          responseType: "json",
+          timeout: cfg.timeout,
+        });
+      } catch (e) {
+        if (e.xmlhttp && e.xmlhttp.status) {
+          xhr = e.xmlhttp;
+        } else {
+          throw new Error(label + " API not reachable at " + url + ": " + (e.message || e));
+        }
+      }
 
       progressWin.close();
 
       if (xhr.status !== 200) {
-        const errBody = typeof xhr.response === "string" ? JSON.parse(xhr.response) : xhr.response;
-        const errorMsg = errBody && errBody.error ? errBody.error.message : xhr.statusText;
-        throw new Error("Gemini API Error " + xhr.status + ": " + errorMsg);
+        throw new Error(label + " API Error " + xhr.status + ": " + this.getErrorMessage(xhr));
       }
 
-      const response = xhr.response;
+      const response = typeof xhr.response === "string" ? JSON.parse(xhr.response) : xhr.response;
 
-      if (!response.choices || response.choices.length === 0 || !response.choices[0].message?.content) {
-        throw new Error("No translation received from Gemini");
+      if (!response || !response.choices || response.choices.length === 0 || !response.choices[0].message?.content) {
+        throw new Error("No translation received from " + label);
       }
 
       const translation = response.choices[0].message.content.trim();
@@ -1036,6 +1166,14 @@ ZoteroUtils = {
   },
 
   // ==================== MARKDOWN TO HTML CONVERSION (from zotero-summary-by-ai) ====================
+
+  escapeHTML(text) {
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  },
 
   markdownToHTML(text) {
     let html = text;

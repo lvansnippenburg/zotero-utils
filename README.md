@@ -2,6 +2,10 @@
 
 A Zotero plugin that provides annotation export (to markdown), PDF summarization and annotation translation (using the Gemini API), auto-tagging, and annotation color customization.
 
+## building (on my mac)
+Run:
+```zplugin_build.sh```
+
 ## Features
 
 ### Annotation Utilities

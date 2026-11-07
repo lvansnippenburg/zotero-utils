@@ -1,98 +1,47 @@
 <vbox
     xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
     xmlns:html="http://www.w3.org/1999/xhtml"
+    onload="Zotero.ZoteroUtils.initPrefsPane(this)"
 >
   <groupbox>
     <label><html:h2>AI Provider</html:h2></label>
 
     <hbox align="center" style="margin-bottom: 10px">
-      <label value="Provider:" control="ai-provider" style="min-width: 120px" />
-      <menulist id="ai-provider" preference="extensions.zotero-utils.provider">
-        <menupopup>
-          <menuitem label="Google Gemini" value="gemini" />
-          <menuitem label="Local LLM server (OpenAI API)" value="local" />
-        </menupopup>
+      <label value="Provider:" control="zu-provider-list" style="min-width: 120px" />
+      <menulist id="zu-provider-list" style="min-width: 220px">
+        <menupopup id="zu-provider-popup" />
       </menulist>
+      <button id="zu-provider-add" label="Add provider…" />
+      <button id="zu-provider-remove" label="Remove" />
     </hbox>
 
-    <description>
-      Choose which AI service is used for summaries and translations.
-    </description>
-  </groupbox>
-
-  <groupbox>
-    <label><html:h2>Local LLM Settings</html:h2></label>
-
     <hbox align="center" style="margin-bottom: 10px">
-      <label value="Endpoint:" control="local-endpoint" style="min-width: 120px" />
+      <label value="Endpoint:" control="zu-provider-endpoint" style="min-width: 120px" />
       <html:input
-                id="local-endpoint"
+                id="zu-provider-endpoint"
                 type="text"
-                preference="extensions.zotero-utils.localEndpoint"
-                placeholder="http://127.0.0.1:8000/v1"
+                placeholder="https://…/v1"
                 style="flex: 1"
             />
     </hbox>
 
     <hbox align="center" style="margin-bottom: 10px">
-      <label value="Model name:" control="local-model" style="min-width: 120px" />
+      <label value="Model name:" control="zu-provider-model" style="min-width: 120px" />
       <html:input
-                id="local-model"
+                id="zu-provider-model"
                 type="text"
-                preference="extensions.zotero-utils.localModel"
                 style="flex: 1"
             />
     </hbox>
 
     <hbox align="center" style="margin-bottom: 10px">
-      <label value="Password:" control="local-api-key" style="min-width: 120px" />
+      <label value="API key:" control="zu-provider-apikey" style="min-width: 120px" />
       <html:input
-                id="local-api-key"
+                id="zu-provider-apikey"
                 type="password"
-                preference="extensions.zotero-utils.localApiKey"
-                placeholder="Leave empty if the server needs no password"
+                placeholder="API key, or password for a local server"
                 style="flex: 1"
             />
-    </hbox>
-
-    <description style="margin-top: 10px">
-      Used when the provider is "Local LLM server". The server must provide an OpenAI-compatible
-      /chat/completions endpoint. The password is sent as a Bearer token. "Send Native PDF" is not
-      supported by local servers; extracted text is sent instead.
-    </description>
-  </groupbox>
-
-  <groupbox>
-    <label><html:h2>Gemini API Settings</html:h2></label>
-
-    <hbox align="center" style="margin-bottom: 10px">
-      <label value="API Key:" control="gemini-api-key" style="min-width: 120px" />
-      <html:input
-                id="gemini-api-key"
-                type="password"
-                preference="extensions.zotero-utils.apiKey"
-                style="flex: 1"
-            />
-    </hbox>
-
-    <hbox align="center" style="margin-bottom: 10px">
-      <label value="API Endpoint:" control="gemini-endpoint" style="min-width: 120px" />
-      <html:input
-                id="gemini-endpoint"
-                type="text"
-                preference="extensions.zotero-utils.apiEndpoint"
-                placeholder="https://generativelanguage.googleapis.com/v1beta/openai"
-                style="flex: 1"
-            />
-    </hbox>
-
-    <hbox align="center" style="margin-bottom: 10px">
-      <label value="Model:" control="ai-model" style="min-width: 120px" />
-      <menulist id="ai-model" preference="extensions.zotero-utils.model">
-        <menupopup>
-          <menuitem label="Gemini Flash Lite (latest)" value="gemini-flash-lite-latest" />
-        </menupopup>
-      </menulist>
     </hbox>
 
     <hbox align="center" style="margin-bottom: 10px">
@@ -106,7 +55,13 @@
     </hbox>
 
     <description style="margin-top: 10px">
-      Get an API key from: <a href="https://aistudio.google.com/" target="_blank">https://aistudio.google.com/</a>.
+      The selected provider is used for summaries and translations. Every provider needs an
+      OpenAI-compatible endpoint (offering /chat/completions), a model name and an API key, which is
+      sent as a Bearer token. A local server (127.0.0.1 / localhost) may be used without a key.
+      Changes are saved immediately.
+    </description>
+    <description style="margin-top: 6px">
+      API keys: Gemini at https://aistudio.google.com/ and Mistral at https://console.mistral.ai/.
     </description>
   </groupbox>
 
@@ -126,7 +81,7 @@
 
     <description style="margin-top: 10px">
       <html:strong>Extraction Mode:</html:strong> "Text Only" uses Zotero's built-in text extraction from the current view.
-      "Full Text Extraction" extracts all text from the PDF file. "Send Native PDF" sends the actual PDF file directly to Gemini's native API for multimodal analysis.
+      "Full Text Extraction" extracts all text from the PDF file. "Send Native PDF" sends the actual PDF file directly to Gemini's native API for multimodal analysis; other providers receive the extracted text instead.
     </description>
   </groupbox>
 
@@ -176,9 +131,105 @@
   <groupbox>
     <label><html:h2>Annotation Colors</html:h2></label>
 
-    <description style="margin-top: 10px">
-      Custom labels for annotation highlight colors. These use Dutch labels by default.
-      The color labels are automatically applied to annotation context menus.
+    <description style="margin-bottom: 10px">
+      Custom labels for the annotation highlight colors, shown in the color menus of the PDF reader.
+      Leave a field empty to keep Zotero's own color name.
     </description>
+
+    <hbox align="center" style="margin-bottom: 6px">
+      <html:span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-inline-end: 8px; background-color: #ffd400"></html:span>
+      <label value="Yellow:" control="zu-color-ffd400" style="min-width: 100px" />
+      <html:input
+        id="zu-color-ffd400"
+        type="text"
+        preference="extensions.zotero-utils.colorLabel.ffd400"
+        placeholder="Zotero default name"
+        style="flex: 1"
+      />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 6px">
+      <html:span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-inline-end: 8px; background-color: #ff6666"></html:span>
+      <label value="Red:" control="zu-color-ff6666" style="min-width: 100px" />
+      <html:input
+        id="zu-color-ff6666"
+        type="text"
+        preference="extensions.zotero-utils.colorLabel.ff6666"
+        placeholder="Zotero default name"
+        style="flex: 1"
+      />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 6px">
+      <html:span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-inline-end: 8px; background-color: #5fb236"></html:span>
+      <label value="Green:" control="zu-color-5fb236" style="min-width: 100px" />
+      <html:input
+        id="zu-color-5fb236"
+        type="text"
+        preference="extensions.zotero-utils.colorLabel.5fb236"
+        placeholder="Zotero default name"
+        style="flex: 1"
+      />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 6px">
+      <html:span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-inline-end: 8px; background-color: #2ea8e5"></html:span>
+      <label value="Blue:" control="zu-color-2ea8e5" style="min-width: 100px" />
+      <html:input
+        id="zu-color-2ea8e5"
+        type="text"
+        preference="extensions.zotero-utils.colorLabel.2ea8e5"
+        placeholder="Zotero default name"
+        style="flex: 1"
+      />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 6px">
+      <html:span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-inline-end: 8px; background-color: #a28ae5"></html:span>
+      <label value="Purple:" control="zu-color-a28ae5" style="min-width: 100px" />
+      <html:input
+        id="zu-color-a28ae5"
+        type="text"
+        preference="extensions.zotero-utils.colorLabel.a28ae5"
+        placeholder="Zotero default name"
+        style="flex: 1"
+      />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 6px">
+      <html:span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-inline-end: 8px; background-color: #e56eee"></html:span>
+      <label value="Magenta:" control="zu-color-e56eee" style="min-width: 100px" />
+      <html:input
+        id="zu-color-e56eee"
+        type="text"
+        preference="extensions.zotero-utils.colorLabel.e56eee"
+        placeholder="Zotero default name"
+        style="flex: 1"
+      />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 6px">
+      <html:span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-inline-end: 8px; background-color: #f19837"></html:span>
+      <label value="Orange:" control="zu-color-f19837" style="min-width: 100px" />
+      <html:input
+        id="zu-color-f19837"
+        type="text"
+        preference="extensions.zotero-utils.colorLabel.f19837"
+        placeholder="Zotero default name"
+        style="flex: 1"
+      />
+    </hbox>
+
+    <hbox align="center" style="margin-bottom: 6px">
+      <html:span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-inline-end: 8px; background-color: #aaaaaa"></html:span>
+      <label value="Gray:" control="zu-color-aaaaaa" style="min-width: 100px" />
+      <html:input
+        id="zu-color-aaaaaa"
+        type="text"
+        preference="extensions.zotero-utils.colorLabel.aaaaaa"
+        placeholder="Zotero default name"
+        style="flex: 1"
+      />
+    </hbox>
   </groupbox>
 </vbox>

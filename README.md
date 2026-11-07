@@ -1,6 +1,6 @@
 # Zotero Utils
 
-A Zotero plugin that provides annotation export (to markdown), PDF summarization and annotation translation (using the Gemini API), auto-tagging, and annotation color customization.
+A Zotero plugin that provides annotation export (to markdown), PDF summarization and annotation translation (using Gemini, Mistral, a local LLM server or any other OpenAI-compatible API), auto-tagging, and annotation color customization.
 
 ## building (on my mac)
 Run:
@@ -9,19 +9,20 @@ Run:
 ## Features
 
 ### Annotation Utilities
-- **Translate**: Translate annotation text using Gemini AI
+- **Translate**: Translate annotation text using the selected AI provider
 - **Export as Markdown**: Export annotations or notes as Markdown files with proper references
-- **Smart Copy**: Copy annotation with reference and page info to clipboard
+- **Smart Copy**: Copy annotation with reference and page info to clipboard: 
+```Cuyt 2017, 66; (a year if in selected annotation); zotero://open-pdf/library/items/C5PD6J7W?page=66&annotation=AC8NY6RW```
 
 ### PDF Summarization
-- **Summarize PDFs**: Generate comprehensive summaries of PDF documents
+- **Summarize PDFs**: Generate comprehensive summaries of PDF documents using the selected AI provider.
 
 ### Auto-tagging
 - **Automatic /unread tag**: New items automatically receive the `/unread` tag (configurable)
 - **Enable/Disable**: Toggle auto-tagging on/off in preferences
 
 ### Annotation Color Customization
-- **Dutch color labels**: Annotation highlight colors have custom Dutch names
+- **Custom color labels**: Annotation highlight colors get custom names (Dutch by default, editable in settings)
 - **Color mapping**: Each highlight color is mapped to a descriptive label (e.g., Yellow = "Interessant punt")
 
 ## Installation
@@ -33,11 +34,11 @@ Run:
 
 ## Configuration
 
-1. Get a Gemini API key from [https://aistudio.google.com/](https://aistudio.google.com/)
-2. In Zotero, go to Edit > Preferences
+1. Get an API key from your provider, e.g. Gemini ([aistudio.google.com](https://aistudio.google.com/)) or Mistral ([console.mistral.ai](https://console.mistral.ai/)). A local server needs no key (or its password).
+2. In Zotero, go to Edit > Settings
 3. Find "Zotero Utils" in the left sidebar
-4. Enter your API key in the Gemini API Settings section
-5. Configure your preferred model, language, and other settings
+4. Select a provider under "AI Provider" and check its endpoint, model name and API key
+5. Configure your language and other settings
 
 ## Usage
 
@@ -64,17 +65,22 @@ Run:
 
 ## Preferences
 
-### Gemini API Settings
-- **API Key**: Your Gemini API key
-- **API Endpoint**: The Gemini API endpoint (default: https://generativelanguage.googleapis.com/v1beta/openai)
-- **Model**: Choose from available Gemini models
+### AI Provider
+- **Provider**: The provider profile used for summaries and translations. Built in: Google Gemini, Mistral and Local LLM.
+- **Add provider… / Remove**: Add your own profile (e.g. OpenAI, OpenRouter, Ollama) or remove one
+- **Endpoint**: OpenAI-compatible base URL offering `/chat/completions`
+  - Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`
+  - Mistral: `https://api.mistral.ai/v1`
+  - Local LLM: `http://127.0.0.1:8000/v1`
+- **Model name**: e.g. `gemini-flash-lite-latest`, `mistral-small-latest`, or the name your local server uses
+- **API key**: Sent as a Bearer token; optional for local servers (127.0.0.1 / localhost)
 - **Language**: Default language for summaries and translations
 
 ### Summary Settings
 - **Extraction Mode**: Choose between:
   - **Text Only (Faster)**: Uses Zotero's built-in text extraction (faster).
   - **Full Text Extraction (Thorough)**: Extracts text from the entire PDF before sending (thorough).
-  - **Send Native PDF (Multimodal)**: Sends the actual PDF file directly to Gemini's native API for multimodal analysis (recommended).
+  - **Send Native PDF (Multimodal)**: Sends the actual PDF file directly to Gemini's native API for multimodal analysis (Gemini only; other providers receive the extracted text).
 
 ### Export Settings
 - **Export Path**: Directory where Markdown files will be saved (leave empty for home directory)
@@ -84,22 +90,18 @@ Run:
 - **Unread Tag**: The tag to apply to new items (default: /unread)
 
 ### Annotation Colors
-- **Custom Labels**: Dutch labels for annotation highlight colors (configurable in code)
+- **Custom Labels**: A label per highlight color (Yellow, Red, Green, Blue, Purple, Magenta, Orange, Gray), shown in the PDF reader's color menus. Defaults are Dutch; leave a field empty to keep Zotero's own name.
 
 ## Supported Models
 
-The plugin supports Gemini API models via the OpenAI-compatible endpoint, including:
-- gemini-2.5-flash-lite
-- gemini-2.0-flash
-- gemini-1.5-flash
-- gemini-1.5-pro
+Any model offered through an OpenAI-compatible `/chat/completions` endpoint can be used, for example
+Gemini models, Mistral models, or models served by a local server (llama.cpp, vLLM, LM Studio, Ollama, …).
 
 ## API Notes
 
-- You need a Gemini API key to use the AI features
+- You need an API key for a cloud provider, or a running local LLM server, to use the AI features
 - API calls consume tokens and may incur costs depending on your plan
-- The free tier has generous limits for testing
-- See [Gemini Pricing](https://ai.google.dev/pricing) for details
+- See [Gemini Pricing](https://ai.google.dev/pricing) and [Mistral Pricing](https://mistral.ai/pricing) for details
 
 ## License
 
@@ -112,4 +114,4 @@ This plugin was created by combining and modifying three previous plugins:
 - **Summary by AI**: PDF summarization
 - **Colors and Autotag**: Auto-tagging and color customization
 
-The plugin uses Google's Gemini API.
+The plugin can use Google's Gemini API, Mistral's API, or any OpenAI-compatible API.

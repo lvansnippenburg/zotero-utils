@@ -10,25 +10,16 @@ ZoteroUtils = {
   autoTagEnabled: true,
   unreadTag: "/unread",
 
-  // Annotation color customization
-  colorLabelMap: {
-    "#ffd400": "&nbsp;Interessant punt", // Yellow
-    "#ff6666": "&nbsp;Hoofdvraag / belangrijk punt", // Red
-    "#5fb236": "&nbsp;Referentie naar ander werk", // Green
-    "#2ea8e5": "&nbsp;Plaats", // Blue
-    "#a28ae5": "&nbsp;Persoon", // Purple
-    "#e56eee": "&nbsp;Hoe zit dit?", // Magenta
-    "#f19837": "&nbsp;Hoofdstuk", // Orange
-    "#aaaaaa": "&nbsp;Onzin", // Gray
-  },
+  // Annotation color customization: Zotero's highlight colors. The label for each color is
+  // stored in the preference "colorLabel.<hex>" (defaults in prefs.js, editable in settings).
+  ANNOTATION_COLORS: ["#ffd400", "#ff6666", "#5fb236", "#2ea8e5", "#a28ae5", "#e56eee", "#f19837", "#aaaaaa"],
 
   strings: {
     nl: {
       menuLabel: "Samenvatten",
       selectItem: "Selecteer een PDF-item",
       noPDF: "Geen PDF gevonden",
-      configureAPI: "Configureer eerst uw API key in de voorkeuren",
-      configureLocal: "Configureer eerst de modelnaam van de lokale LLM in de voorkeuren",
+      configureAPI: "Configureer eerst endpoint, modelnaam en API key van de gekozen AI-provider in de voorkeuren",
       processing: "Tekst wordt geëxtraheerd...",
       sendingToAPI: "Verzenden naar AI...",
       success: "Samenvatting succesvol toegevoegd!",
@@ -50,8 +41,7 @@ ZoteroUtils = {
       menuLabel: "Summarize",
       selectItem: "Select a PDF item",
       noPDF: "No PDF found",
-      configureAPI: "Please configure your API key in preferences first",
-      configureLocal: "Please configure the local LLM model name in preferences first",
+      configureAPI: "Please configure endpoint, model name and API key of the selected AI provider in preferences first",
       processing: "Extracting text...",
       sendingToAPI: "Sending to AI...",
       success: "Summary successfully added!",
@@ -182,17 +172,29 @@ ZoteroUtils = {
 
   // ==================== COLOR CUSTOMIZATION FUNCTIONS (from colors-and-autotag) ====================
 
+  // Returns the custom label for an annotation color, or "" to keep Zotero's own name.
+  getColorLabel(color) {
+    const hex = String(color).toLowerCase();
+    if (!this.ANNOTATION_COLORS.includes(hex)) return "";
+    return (Zotero.Prefs.get(this.PREF_BRANCH + "colorLabel." + hex.slice(1), true) || "").trim();
+  },
+
   setupColorCustomization() {
-    // Customize annotation color names
+    // Customize annotation color names (labels are read on every menu, so settings apply immediately)
     const hackContextMenuLabel = (event) => {
       setTimeout(() => {
-        event.reader._iframeWindow?.document.querySelectorAll(".context-menu .row").forEach((e) => {
+        const doc = event.reader._iframeWindow?.document;
+        if (!doc) return;
+        doc.querySelectorAll(".context-menu .row").forEach((e) => {
           const color = e.querySelector("path[fill]")?.getAttribute("fill");
           if (!color) {
             return;
           }
-          if (color in this.colorLabelMap) {
-            e.innerHTML = e.querySelector("svg")?.outerHTML + this.colorLabelMap[color];
+          const label = this.getColorLabel(color);
+          if (label) {
+            const svg = e.querySelector("svg");
+            // Use a text node so labels with <, & etc. are shown literally
+            e.replaceChildren(...(svg ? [svg] : []), doc.createTextNode("\u00A0" + label));
           }
         });
       }, 10);
@@ -484,7 +486,7 @@ ZoteroUtils = {
       const cfg = this.getLLMConfig();
 
       if (!this.isLLMConfigured(cfg)) {
-        this.showMessage(this.getString(cfg.provider === "local" ? "configureLocal" : "configureAPI"));
+        this.showMessage(this.getString("configureAPI"));
         return;
       }
 
@@ -497,9 +499,9 @@ ZoteroUtils = {
 
       // Check extraction mode preference
       let extractionMode = Zotero.Prefs.get(this.PREF_BRANCH + "extractionMode", true) || "text";
-      if (extractionMode === "native" && cfg.provider === "local") {
-        // Native PDF upload is Gemini-only; local OpenAI-compatible servers get extracted text
-        Zotero.getMainWindow().console.log("zotero-utils: native PDF mode not supported by local LLM, falling back to text extraction");
+      if (extractionMode === "native" && !cfg.isGemini) {
+        // Native PDF upload is Gemini-only; other OpenAI-compatible providers get extracted text
+        Zotero.getMainWindow().console.log("zotero-utils: native PDF mode only supported by Gemini, falling back to text extraction for " + cfg.label);
         extractionMode = "text";
       }
       let summary;
@@ -544,7 +546,7 @@ ZoteroUtils = {
         const base64Data = this.arrayBufferToBase64(data.buffer || data);
 
         // Call Gemini API with native PDF
-        summary = await this.callAPIPDF(cfg.apiKey, base64Data);
+        summary = await this.callAPIPDF(cfg, base64Data);
       } else {
         // Full PDF mode - extract text from all pages
         // Note: Gemini API doesn't support PDF files directly, so we extract text
@@ -615,36 +617,187 @@ ZoteroUtils = {
 
   // ==================== LLM API FUNCTIONS ====================
 
-  // Returns the active LLM configuration based on the "provider" preference.
-  getLLMConfig() {
-    const get = (name) => Zotero.Prefs.get(this.PREF_BRANCH + name, true);
-    const provider = get("provider") === "local" ? "local" : "gemini";
+  // Built-in provider profiles. Every provider uses the same OpenAI-compatible scheme:
+  // an endpoint (exposing /chat/completions), a model name and an API key / password.
+  DEFAULT_PROVIDERS: [
+    {
+      id: "gemini",
+      name: "Google Gemini",
+      endpoint: "https://generativelanguage.googleapis.com/v1beta/openai",
+      model: "gemini-flash-lite-latest",
+      apiKey: "",
+    },
+    {
+      id: "mistral",
+      name: "Mistral",
+      endpoint: "https://api.mistral.ai/v1",
+      model: "mistral-small-latest",
+      apiKey: "",
+    },
+    {
+      id: "local",
+      name: "Local LLM",
+      endpoint: "http://127.0.0.1:8000/v1",
+      model: "",
+      apiKey: "",
+    },
+  ],
 
-    if (provider === "local") {
-      const endpoint = (get("localEndpoint") || "http://127.0.0.1:8000/v1").trim().replace(/\/+$/, "");
-      return {
-        provider,
-        endpoint,
-        model: (get("localModel") || "").trim(),
-        apiKey: (get("localApiKey") || "").trim(),
-        label: "Local LLM",
-        timeout: 600000, // local models can be slow on long documents
-      };
+  // Returns the list of provider profiles from the "providers" JSON preference.
+  // On first use, the defaults are built from the older Gemini / local-LLM preferences.
+  getProviders() {
+    const get = (name) => Zotero.Prefs.get(this.PREF_BRANCH + name, true);
+    try {
+      const raw = get("providers");
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list) && list.length > 0) {
+          return list.map((p) => ({
+            id: String(p.id),
+            name: String(p.name || p.id),
+            endpoint: String(p.endpoint || ""),
+            model: String(p.model || ""),
+            apiKey: String(p.apiKey || ""),
+          }));
+        }
+      }
+    } catch (e) {
+      Zotero.getMainWindow().console.log("zotero-utils: invalid providers preference, using defaults: " + e);
     }
 
-    const endpoint = (get("apiEndpoint") || "https://generativelanguage.googleapis.com/v1beta/openai").trim().replace(/\/+$/, "");
+    // Migrate legacy preferences into the default profiles
+    const legacy = {
+      gemini: { endpoint: get("apiEndpoint"), model: get("model"), apiKey: get("apiKey") },
+      local: { endpoint: get("localEndpoint"), model: get("localModel"), apiKey: get("localApiKey") },
+    };
+    return this.DEFAULT_PROVIDERS.map((def) => {
+      const old = legacy[def.id] || {};
+      return {
+        ...def,
+        endpoint: old.endpoint || def.endpoint,
+        model: old.model || def.model,
+        apiKey: old.apiKey || def.apiKey,
+      };
+    });
+  },
+
+  saveProviders(list) {
+    Zotero.Prefs.set(this.PREF_BRANCH + "providers", JSON.stringify(list), true);
+  },
+
+  getSelectedProviderId(list) {
+    const selected = Zotero.Prefs.get(this.PREF_BRANCH + "provider", true);
+    return list.some((p) => p.id === selected) ? selected : list[0].id;
+  },
+
+  // Returns the active LLM configuration based on the selected provider profile.
+  getLLMConfig() {
+    const list = this.getProviders();
+    const id = this.getSelectedProviderId(list);
+    const p = list.find((x) => x.id === id);
+    const endpoint = p.endpoint.trim().replace(/\/+$/, "");
+    const isLocal = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$)/i.test(endpoint);
     return {
-      provider,
+      id: p.id,
+      label: p.name,
       endpoint,
-      model: get("model") || "gemini-2.5-flash-lite",
-      apiKey: get("apiKey") || "",
-      label: "Gemini",
-      timeout: 120000,
+      model: p.model.trim(),
+      apiKey: p.apiKey.trim(),
+      isLocal,
+      // Only Gemini supports sending the native PDF (see callAPIPDF)
+      isGemini: endpoint.includes("generativelanguage.googleapis.com"),
+      // Local models can be slow on long documents
+      timeout: isLocal ? 600000 : 180000,
     };
   },
 
+  // Endpoint and model are always required; an API key is optional only for local servers.
   isLLMConfigured(cfg) {
-    return cfg.provider === "local" ? !!cfg.model : !!cfg.apiKey;
+    return !!cfg.endpoint && !!cfg.model && (!!cfg.apiKey || cfg.isLocal);
+  },
+
+  // ==================== PREFERENCES PANE (provider profiles) ====================
+
+  // Called from the onload handler of the preferences pane root element.
+  initPrefsPane(root) {
+    const doc = root.ownerDocument;
+    const win = doc.defaultView;
+    const $ = (id) => doc.getElementById(id);
+    const menulist = $("zu-provider-list");
+    const popup = $("zu-provider-popup");
+    const fields = {
+      endpoint: $("zu-provider-endpoint"),
+      model: $("zu-provider-model"),
+      apiKey: $("zu-provider-apikey"),
+    };
+    if (!menulist || !popup) return;
+
+    let providers = this.getProviders();
+    let selectedId = this.getSelectedProviderId(providers);
+    const current = () => providers.find((p) => p.id === selectedId);
+
+    const render = () => {
+      popup.replaceChildren();
+      for (const p of providers) {
+        const item = doc.createXULElement("menuitem");
+        item.setAttribute("label", p.name);
+        item.setAttribute("value", p.id);
+        popup.appendChild(item);
+      }
+      menulist.value = selectedId;
+      const p = current();
+      for (const [key, input] of Object.entries(fields)) {
+        input.value = p[key];
+      }
+      $("zu-provider-remove").disabled = providers.length <= 1;
+    };
+
+    const select = (id) => {
+      selectedId = id;
+      Zotero.Prefs.set(this.PREF_BRANCH + "provider", id, true);
+      render();
+    };
+
+    menulist.addEventListener("command", () => select(menulist.value));
+
+    for (const [key, input] of Object.entries(fields)) {
+      input.addEventListener("input", () => {
+        current()[key] = input.value;
+        this.saveProviders(providers);
+      });
+    }
+
+    $("zu-provider-add").addEventListener("command", () => {
+      const input = { value: "" };
+      const ok = Services.prompt.prompt(
+        win,
+        "Add AI provider",
+        "Name of the new provider (e.g. OpenAI, OpenRouter, Ollama):",
+        input,
+        null,
+        {},
+      );
+      const name = (input.value || "").trim();
+      if (!ok || !name) return;
+      const id = "custom-" + Date.now();
+      providers.push({ id, name, endpoint: "", model: "", apiKey: "" });
+      this.saveProviders(providers);
+      select(id);
+      fields.endpoint.focus();
+    });
+
+    $("zu-provider-remove").addEventListener("command", () => {
+      if (providers.length <= 1) return;
+      const p = current();
+      if (!Services.prompt.confirm(win, "Remove AI provider", 'Remove provider "' + p.name + '"?')) return;
+      providers = providers.filter((x) => x.id !== p.id);
+      this.saveProviders(providers);
+      select(providers[0].id);
+    });
+
+    // Persist the (possibly migrated) list so the pane and the plugin always agree
+    this.saveProviders(providers);
+    render();
   },
 
   getLLMHeaders(cfg) {
@@ -736,9 +889,9 @@ ZoteroUtils = {
     }
   },
 
-  async callAPIPDF(apiKey, base64Data) {
-    const model = Zotero.Prefs.get(this.PREF_BRANCH + "model", true) || "gemini-2.5-flash-lite";
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
+  async callAPIPDF(cfg, base64Data) {
+    const model = cfg.model;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(cfg.apiKey);
 
     Zotero.getMainWindow().console.log("zotero-utils: calling Gemini Native API for PDF, model=" + model);
 
@@ -865,7 +1018,7 @@ ZoteroUtils = {
       progressWin.close();
       this.showMessage(
         this.getString("translateLabel"),
-        this.getString(cfg.provider === "local" ? "configureLocal" : "configureAPI")
+        this.getString("configureAPI")
       );
       return;
     }

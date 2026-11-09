@@ -27,7 +27,7 @@ ZoteroUtils = {
       noteTitle: "Samenvatting",
       createdByAI: "gemaakt door AI",
       headline: "Samenvatting (AI)",
-      prompt: "Geef een uitgebreide samenvatting van dit document in het Nederlands. Behandel de belangrijkste punten, argumenten en conclusies. Geef geen andere commentaren dan de samenvatting zoals gevraagd, dus ook geen inleidende beschrijving.",
+      prompt: "Geef een  samenvatting van dit document in het Nederlands, in maximaal 700 woorden. Behandel de belangrijkste punten, argumenten en conclusies. Geef geen andere commentaren dan de samenvatting zoals gevraagd, dus ook geen inleidende beschrijving.",
       translateLabel: "Vertalen",
       exportMarkdownLabel: "Exporteer als Markdown",
       smartCopyLabel: "Slim Kopieren",
